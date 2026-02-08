@@ -1,0 +1,70 @@
+{{- if and .Values.datadog.monitors.enabled .Values.datadog.monitors.errorRate.enabled }}
+apiVersion: datadoghq.com/v1alpha1
+kind: DatadogMonitor
+metadata:
+  name: {{ include "base.datadogMonitorName" (merge (dict "monitorType" "error-rate") .) }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "base.labels" . | nindent 4 }}
+    monitor-type: error-rate
+spec:
+  query: |
+    avg(last_{{ .Values.datadog.monitors.errorRate.evaluationWindow }}):sum:trace.servlet.request.errors{service:{{ .Values.service.name }},env:{{ .Values.global.environment }}} by {service,env,http.status_code}.as_count() / sum:trace.servlet.request.hits{service:{{ .Values.service.name }},env:{{ .Values.global.environment }}} by {service,env}.as_count() * 100 > {{ .Values.datadog.monitors.errorRate.threshold.critical }}
+  
+  type: metric alert
+  
+  name: "[{{ .Values.global.environment | upper }}] {{ .Values.service.name }} - Error Rate Alert"
+  
+  message: |
+    {{ .Values.datadog.monitors.errorRate.message }}
+    
+    **Alert Details:**
+    - Service: {{ .Values.service.name }}
+    - Environment: {{ .Values.global.environment }}
+    - Team: {{ .Values.global.team }}
+    - Threshold: Critical {{ .Values.datadog.monitors.errorRate.threshold.critical }}% | Warning {{ .Values.datadog.monitors.errorRate.threshold.warning }}%
+    
+    **Actions:**
+    1. Check application logs
+    2. Review recent deployments
+    3. Verify upstream/downstream services
+    4. Check database connections
+    
+    **Dashboards:**
+    - Service: https://app.datadoghq.com/apm/service/{{ .Values.service.name }}
+    
+    {{- if .Values.datadog.notifications.slackChannel }}
+    @{{ .Values.datadog.notifications.slackChannel }}
+    {{- end }}
+    {{- if .Values.datadog.notifications.pagerdutyServiceKey }}
+    @pagerduty-{{ .Values.datadog.notifications.pagerdutyServiceKey }}
+    {{- end }}
+  
+  tags:
+    - service:{{ .Values.service.name }}
+    - env:{{ .Values.global.environment }}
+    - team:{{ .Values.global.team }}
+    - monitor-type:error-rate
+    {{- range .Values.datadog.tags }}
+    - {{ . }}
+    {{- end }}
+  
+  options:
+    thresholds:
+      critical: {{ .Values.datadog.monitors.errorRate.threshold.critical }}
+      warning: {{ .Values.datadog.monitors.errorRate.threshold.warning }}
+    
+    notify_no_data: {{ .Values.datadog.notifications.notifyNoData }}
+    no_data_timeframe: {{ .Values.datadog.notifications.noDataTimeframe }}
+    
+    {{- if gt (.Values.datadog.notifications.renotifyInterval | int) 0 }}
+    renotify_interval: {{ .Values.datadog.notifications.renotifyInterval }}
+    {{- end }}
+    
+    require_full_window: false
+    include_tags: true
+    
+    priority: {{ include "base.alertPriority" (dict "Values" .Values "prodPriority" 1 "stagingPriority" 2 "testPriority" 3) }}
+    
+    evaluation_delay: 60
+{{- end }}

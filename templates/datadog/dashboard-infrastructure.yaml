@@ -1,0 +1,353 @@
+{{- if .Values.datadog.dashboards.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "base.fullname" . }}-dashboard-infrastructure
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "base.labels" . | nindent 4 }}
+    dashboard-type: infrastructure
+  annotations:
+    datadog-dashboard: "true"
+data:
+  dashboard.json: |
+    {
+      "title": "{{ .Values.service.name }} - Infrastructure ({{ .Values.global.environment | upper }})",
+      "description": "Pod health, resource usage, and infrastructure metrics",
+      "widgets": [
+        {
+          "id": 1,
+          "definition": {
+            "title": "🟢 Pod Status",
+            "title_size": "16",
+            "type": "check_status",
+            "check": "kubernetes.pod.running",
+            "grouping": "cluster",
+            "group_by": ["pod_name"],
+            "tags": ["service:{{ .Values.service.name }}", "env:{{ .Values.global.environment }}"]
+          },
+          "layout": {
+            "x": 0,
+            "y": 0,
+            "width": 3,
+            "height": 2
+          }
+        },
+        {
+          "id": 2,
+          "definition": {
+            "title": "📦 Pod Count",
+            "title_size": "16",
+            "type": "query_value",
+            "requests": [
+              {
+                "q": "sum:kubernetes.pods.running{service:{{ .Values.service.name }},env:{{ .Values.global.environment }}}",
+                "aggregator": "last"
+              }
+            ],
+            "autoscale": true,
+            "precision": 0
+          },
+          "layout": {
+            "x": 3,
+            "y": 0,
+            "width": 3,
+            "height": 2
+          }
+        },
+        {
+          "id": 3,
+          "definition": {
+            "title": "🔄 Pod Restarts (24h)",
+            "title_size": "16",
+            "type": "query_value",
+            "requests": [
+              {
+                "q": "sum:kubernetes.containers.restarts{service:{{ .Values.service.name }},env:{{ .Values.global.environment }}}.as_count()",
+                "aggregator": "sum"
+              }
+            ],
+            "autoscale": true,
+            "precision": 0,
+            "custom_unit": "restarts"
+          },
+          "layout": {
+            "x": 6,
+            "y": 0,
+            "width": 3,
+            "height": 2
+          }
+        },
+        {
+          "id": 4,
+          "definition": {
+            "title": "⚡ HPA Status",
+            "title_size": "16",
+            "type": "query_value",
+            "requests": [
+              {
+                "q": "avg:kubernetes.hpa.desired_replicas{service:{{ .Values.service.name }},env:{{ .Values.global.environment }}}",
+                "aggregator": "last"
+              }
+            ],
+            "autoscale": false,
+            "precision": 0,
+            "custom_unit": "desired"
+          },
+          "layout": {
+            "x": 9,
+            "y": 0,
+            "width": 3,
+            "height": 2
+          }
+        },
+        {
+          "id": 5,
+          "definition": {
+            "title": "💻 CPU Usage by Pod (%)",
+            "title_size": "16",
+            "type": "timeseries",
+            "requests": [
+              {
+                "q": "avg:kubernetes.cpu.usage.total{service:{{ .Values.service.name }},env:{{ .Values.global.environment }}} by {pod_name}",
+                "display_type": "line",
+                "style": {
+                  "palette": "cool"
+                }
+              }
+            ],
+            "yaxis": {
+              "min": "0",
+              "max": "100"
+            },
+            "markers": [
+              {
+                "value": "y = {{ .Values.datadog.monitors.cpu.threshold.critical }}",
+                "display_type": "error solid",
+                "label": "Critical"
+              },
+              {
+                "value": "y = {{ .Values.datadog.monitors.cpu.threshold.warning }}",
+                "display_type": "warning dashed",
+                "label": "Warning"
+              }
+            ]
+          },
+          "layout": {
+            "x": 0,
+            "y": 2,
+            "width": 6,
+            "height": 3
+          }
+        },
+        {
+          "id": 6,
+          "definition": {
+            "title": "🧠 Memory Usage by Pod (%)",
+            "title_size": "16",
+            "type": "timeseries",
+            "requests": [
+              {
+                "q": "avg:kubernetes.memory.usage{service:{{ .Values.service.name }},env:{{ .Values.global.environment }}} by {pod_name}",
+                "display_type": "line",
+                "style": {
+                  "palette": "purple"
+                }
+              }
+            ],
+            "yaxis": {
+              "min": "0",
+              "max": "100"
+            },
+            "markers": [
+              {
+                "value": "y = {{ .Values.datadog.monitors.memory.threshold.critical }}",
+                "display_type": "error solid",
+                "label": "Critical"
+              },
+              {
+                "value": "y = {{ .Values.datadog.monitors.memory.threshold.warning }}",
+                "display_type": "warning dashed",
+                "label": "Warning"
+              }
+            ]
+          },
+          "layout": {
+            "x": 6,
+            "y": 2,
+            "width": 6,
+            "height": 3
+          }
+        },
+        {
+          "id": 7,
+          "definition": {
+            "title": "📊 CPU Requests vs Limits",
+            "title_size": "16",
+            "type": "timeseries",
+            "requests": [
+              {
+                "q": "avg:kubernetes.cpu.requests{service:{{ .Values.service.name }},env:{{ .Values.global.environment }}} by {pod_name}",
+                "display_type": "line",
+                "style": {
+                  "palette": "green",
+                  "line_type": "dashed"
+                },
+                "metadata": [
+                  {
+                    "expression": "avg:kubernetes.cpu.requests{service:{{ .Values.service.name }},env:{{ .Values.global.environment }}} by {pod_name}",
+                    "alias_name": "Requests"
+                  }
+                ]
+              },
+              {
+                "q": "avg:kubernetes.cpu.limits{service:{{ .Values.service.name }},env:{{ .Values.global.environment }}} by {pod_name}",
+                "display_type": "line",
+                "style": {
+                  "palette": "orange",
+                  "line_type": "solid"
+                },
+                "metadata": [
+                  {
+                    "expression": "avg:kubernetes.cpu.limits{service:{{ .Values.service.name }},env:{{ .Values.global.environment }}} by {pod_name}",
+                    "alias_name": "Limits"
+                  }
+                ]
+              }
+            ]
+          },
+          "layout": {
+            "x": 0,
+            "y": 5,
+            "width": 6,
+            "height": 3
+          }
+        },
+        {
+          "id": 8,
+          "definition": {
+            "title": "📊 Memory Requests vs Limits",
+            "title_size": "16",
+            "type": "timeseries",
+            "requests": [
+              {
+                "q": "avg:kubernetes.memory.requests{service:{{ .Values.service.name }},env:{{ .Values.global.environment }}} by {pod_name}",
+                "display_type": "line",
+                "style": {
+                  "palette": "green",
+                  "line_type": "dashed"
+                },
+                "metadata": [
+                  {
+                    "expression": "avg:kubernetes.memory.requests{service:{{ .Values.service.name }},env:{{ .Values.global.environment }}} by {pod_name}",
+                    "alias_name": "Requests"
+                  }
+                ]
+              },
+              {
+                "q": "avg:kubernetes.memory.limits{service:{{ .Values.service.name }},env:{{ .Values.global.environment }}} by {pod_name}",
+                "display_type": "line",
+                "style": {
+                  "palette": "orange",
+                  "line_type": "solid"
+                },
+                "metadata": [
+                  {
+                    "expression": "avg:kubernetes.memory.limits{service:{{ .Values.service.name }},env:{{ .Values.global.environment }}} by {pod_name}",
+                    "alias_name": "Limits"
+                  }
+                ]
+              }
+            ]
+          },
+          "layout": {
+            "x": 6,
+            "y": 5,
+            "width": 6,
+            "height": 3
+          }
+        },
+        {
+          "id": 9,
+          "definition": {
+            "title": "🌐 Network Traffic In/Out",
+            "title_size": "16",
+            "type": "timeseries",
+            "requests": [
+              {
+                "q": "sum:kubernetes.network.rx_bytes{service:{{ .Values.service.name }},env:{{ .Values.global.environment }}} by {pod_name}.as_rate()",
+                "display_type": "area",
+                "style": {
+                  "palette": "green"
+                },
+                "metadata": [
+                  {
+                    "expression": "sum:kubernetes.network.rx_bytes{service:{{ .Values.service.name }},env:{{ .Values.global.environment }}} by {pod_name}.as_rate()",
+                    "alias_name": "Received"
+                  }
+                ]
+              },
+              {
+                "q": "sum:kubernetes.network.tx_bytes{service:{{ .Values.service.name }},env:{{ .Values.global.environment }}} by {pod_name}.as_rate() * -1",
+                "display_type": "area",
+                "style": {
+                  "palette": "orange"
+                },
+                "metadata": [
+                  {
+                    "expression": "sum:kubernetes.network.tx_bytes{service:{{ .Values.service.name }},env:{{ .Values.global.environment }}} by {pod_name}.as_rate() * -1",
+                    "alias_name": "Transmitted"
+                  }
+                ]
+              }
+            ]
+          },
+          "layout": {
+            "x": 0,
+            "y": 8,
+            "width": 12,
+            "height": 3
+          }
+        },
+        {
+          "id": 10,
+          "definition": {
+            "title": "📜 Recent Events",
+            "title_size": "16",
+            "type": "event_stream",
+            "query": "source:kubernetes service:{{ .Values.service.name }} env:{{ .Values.global.environment }}",
+            "event_size": "s"
+          },
+          "layout": {
+            "x": 0,
+            "y": 11,
+            "width": 12,
+            "height": 3
+          }
+        }
+      ],
+      "template_variables": [
+        {
+          "name": "service",
+          "default": "{{ .Values.service.name }}",
+          "prefix": "service"
+        },
+        {
+          "name": "env",
+          "default": "{{ .Values.global.environment }}",
+          "prefix": "env"
+        }
+      ],
+      "layout_type": "ordered",
+      "is_read_only": false,
+      "notify_list": [],
+      "reflow_type": "auto",
+      "tags": [
+        "service:{{ .Values.service.name }}",
+        "env:{{ .Values.global.environment }}",
+        "team:{{ .Values.global.team }}",
+        "dashboard-type:infrastructure",
+        "managed-by:helm"
+      ]
+    }
+{{- end }}

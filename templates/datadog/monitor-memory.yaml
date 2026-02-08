@@ -1,0 +1,48 @@
+{{- if and .Values.datadog.monitors.enabled .Values.datadog.monitors.memory.enabled }}
+apiVersion: datadoghq.com/v1alpha1
+kind: DatadogMonitor
+metadata:
+  name: {{ include "base.datadogMonitorName" (merge (dict "monitorType" "memory") .) }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "base.labels" . | nindent 4 }}
+    monitor-type: memory
+spec:
+  {{- if .Values.datadog.monitors.memory.forecast }}
+  query: |
+    avg(last_10m):forecast(avg:kubernetes.memory.usage{service:{{ .Values.service.name }},env:{{ .Values.global.environment }}} by {pod_name}, 'linear', 1) >= {{ .Values.datadog.monitors.memory.threshold.critical }}
+  type: forecast
+  {{- else }}
+  query: |
+    avg(last_10m):avg:kubernetes.memory.usage{service:{{ .Values.service.name }},env:{{ .Values.global.environment }}} by {pod_name} > {{ .Values.datadog.monitors.memory.threshold.critical }}
+  type: metric alert
+  {{- end }}
+  
+  name: "[{{ .Values.global.environment | upper }}] {{ .Values.service.name }} - Memory Usage{{- if .Values.datadog.monitors.memory.forecast }} (Forecast){{- end }}"
+  
+  message: |
+    Memory usage for {{ .Values.service.name }} in {{ .Values.global.environment }}.
+    Current: {{value}}%
+    
+    {{- if .Values.datadog.notifications.slackChannel }}
+    @{{ .Values.datadog.notifications.slackChannel }}
+    {{- end }}
+  
+  tags:
+    - service:{{ .Values.service.name }}
+    - env:{{ .Values.global.environment }}
+    - team:{{ .Values.global.team }}
+    - monitor-type:memory
+    {{- range .Values.datadog.tags }}
+    - {{ . }}
+    {{- end }}
+  
+  options:
+    thresholds:
+      critical: {{ .Values.datadog.monitors.memory.threshold.critical }}
+      warning: {{ .Values.datadog.monitors.memory.threshold.warning }}
+    
+    notify_no_data: true
+    no_data_timeframe: 20
+    priority: {{ include "base.alertPriority" (dict "Values" .Values "prodPriority" 2 "stagingPriority" 3 "testPriority" 3) }}
+{{- end }}

@@ -1,0 +1,58 @@
+{{- if and .Values.datadog.monitors.enabled .Values.datadog.monitors.throughput.enabled .Values.datadog.monitors.throughput.anomalyDetection }}
+apiVersion: datadoghq.com/v1alpha1
+kind: DatadogMonitor
+metadata:
+  name: {{ include "base.datadogMonitorName" (merge (dict "monitorType" "throughput-anomaly") .) }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "base.labels" . | nindent 4 }}
+    monitor-type: anomaly
+    aiops: enabled
+spec:
+  query: |
+    avg(last_1h):anomalies(sum:trace.servlet.request.hits{service:{{ .Values.service.name }},env:{{ .Values.global.environment }}} by {service}.as_count(), 'agile', {{ .Values.datadog.monitors.throughput.deviationThreshold }}, direction='both', interval=60, alert_window='last_15m', seasonality='{{ .Values.datadog.monitors.throughput.seasonality }}') >= 1
+  
+  type: query alert
+  
+  name: "[{{ .Values.global.environment | upper }}] {{ .Values.service.name }} - Throughput Anomaly (AI)"
+  
+  message: |
+    {{ .Values.datadog.monitors.throughput.message }}
+    
+    **Anomaly Details:**
+    - Current Volume: {{value}} requests
+    - Deviation: {{anomaly_severity}}σ
+    - Algorithm: Agile
+    - Seasonality: {{ .Values.datadog.monitors.throughput.seasonality }}
+    
+    {{- if .Values.datadog.notifications.slackChannel }}
+    @{{ .Values.datadog.notifications.slackChannel }}
+    {{- end }}
+  
+  tags:
+    - service:{{ .Values.service.name }}
+    - env:{{ .Values.global.environment }}
+    - team:{{ .Values.global.team }}
+    - monitor-type:anomaly
+    - aiops:enabled
+    {{- range .Values.datadog.tags }}
+    - {{ . }}
+    {{- end }}
+  
+  options:
+    thresholds:
+      critical: 1
+      critical_recovery: 0
+    
+    threshold_windows:
+      trigger_window: "last_15m"
+      recovery_window: "last_15m"
+    
+    notify_no_data: false
+    
+    {{- if gt (.Values.datadog.notifications.renotifyInterval | int) 0 }}
+    renotify_interval: {{ mul .Values.datadog.notifications.renotifyInterval 2 }}
+    {{- end }}
+    
+    priority: {{ include "base.alertPriority" (dict "Values" .Values "prodPriority" 2 "stagingPriority" 3 "testPriority" 3) }}
+{{- end }}

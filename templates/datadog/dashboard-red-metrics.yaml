@@ -1,0 +1,332 @@
+{{- if .Values.datadog.dashboards.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "base.fullname" . }}-dashboard-red
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "base.labels" . | nindent 4 }}
+    dashboard-type: red-metrics
+  annotations:
+    datadog-dashboard: "true"
+data:
+  dashboard.json: |
+    {
+      "title": "{{ .Values.service.name }} - RED Metrics ({{ .Values.global.environment | upper }})",
+      "description": "Standardized RED (Requests, Errors, Duration) metrics dashboard",
+      "widgets": [
+        {
+          "id": 1,
+          "definition": {
+            "title": "📊 Request Rate (per minute)",
+            "title_size": "16",
+            "type": "timeseries",
+            "requests": [
+              {
+                "q": "sum:trace.servlet.request.hits{service:{{ .Values.service.name }},env:{{ .Values.global.environment }}}.as_count().rollup(sum, 60)",
+                "display_type": "line",
+                "style": {
+                  "palette": "blue",
+                  "line_type": "solid",
+                  "line_width": "normal"
+                },
+                "metadata": [
+                  {
+                    "expression": "sum:trace.servlet.request.hits{service:{{ .Values.service.name }},env:{{ .Values.global.environment }}}.as_count().rollup(sum, 60)",
+                    "alias_name": "Requests/min"
+                  }
+                ]
+              }
+            ],
+            "yaxis": {
+              "include_zero": true,
+              "min": "auto",
+              "max": "auto"
+            },
+            "markers": [
+              {
+                "value": "y = 0",
+                "display_type": "error dashed",
+                "label": "No Traffic"
+              }
+            ]
+          },
+          "layout": {
+            "x": 0,
+            "y": 0,
+            "width": 6,
+            "height": 3
+          }
+        },
+        {
+          "id": 2,
+          "definition": {
+            "title": "🔴 Error Rate (%)",
+            "title_size": "16",
+            "type": "timeseries",
+            "requests": [
+              {
+                "q": "sum:trace.servlet.request.errors{service:{{ .Values.service.name }},env:{{ .Values.global.environment }}}.as_count() / sum:trace.servlet.request.hits{service:{{ .Values.service.name }},env:{{ .Values.global.environment }}}.as_count() * 100",
+                "display_type": "line",
+                "style": {
+                  "palette": "warm",
+                  "line_type": "solid",
+                  "line_width": "thick"
+                }
+              }
+            ],
+            "yaxis": {
+              "include_zero": true,
+              "min": "0",
+              "max": "auto"
+            },
+            "markers": [
+              {
+                "value": "y = {{ .Values.datadog.monitors.errorRate.threshold.critical }}",
+                "display_type": "error solid",
+                "label": "Critical: {{ .Values.datadog.monitors.errorRate.threshold.critical }}%"
+              },
+              {
+                "value": "y = {{ .Values.datadog.monitors.errorRate.threshold.warning }}",
+                "display_type": "warning dashed",
+                "label": "Warning: {{ .Values.datadog.monitors.errorRate.threshold.warning }}%"
+              }
+            ]
+          },
+          "layout": {
+            "x": 6,
+            "y": 0,
+            "width": 6,
+            "height": 3
+          }
+        },
+        {
+          "id": 3,
+          "definition": {
+            "title": "⏱️ Latency Distribution (p50, p95, p99)",
+            "title_size": "16",
+            "type": "timeseries",
+            "requests": [
+              {
+                "q": "p50:trace.servlet.request.duration{service:{{ .Values.service.name }},env:{{ .Values.global.environment }}}",
+                "display_type": "line",
+                "style": {
+                  "palette": "green",
+                  "line_type": "solid",
+                  "line_width": "thin"
+                },
+                "metadata": [
+                  {
+                    "expression": "p50:trace.servlet.request.duration{service:{{ .Values.service.name }},env:{{ .Values.global.environment }}}",
+                    "alias_name": "p50"
+                  }
+                ]
+              },
+              {
+                "q": "p95:trace.servlet.request.duration{service:{{ .Values.service.name }},env:{{ .Values.global.environment }}}",
+                "display_type": "line",
+                "style": {
+                  "palette": "orange",
+                  "line_type": "solid",
+                  "line_width": "normal"
+                },
+                "metadata": [
+                  {
+                    "expression": "p95:trace.servlet.request.duration{service:{{ .Values.service.name }},env:{{ .Values.global.environment }}}",
+                    "alias_name": "p95"
+                  }
+                ]
+              },
+              {
+                "q": "p99:trace.servlet.request.duration{service:{{ .Values.service.name }},env:{{ .Values.global.environment }}}",
+                "display_type": "line",
+                "style": {
+                  "palette": "red",
+                  "line_type": "solid",
+                  "line_width": "thick"
+                },
+                "metadata": [
+                  {
+                    "expression": "p99:trace.servlet.request.duration{service:{{ .Values.service.name }},env:{{ .Values.global.environment }}}",
+                    "alias_name": "p99"
+                  }
+                ]
+              }
+            ],
+            "yaxis": {
+              "label": "Duration (ms)",
+              "include_zero": true
+            },
+            "markers": [
+              {
+                "value": "y = {{ .Values.datadog.monitors.latency.threshold.critical }}",
+                "display_type": "error solid",
+                "label": "Critical: {{ .Values.datadog.monitors.latency.threshold.critical }}ms"
+              },
+              {
+                "value": "y = {{ .Values.datadog.monitors.latency.threshold.warning }}",
+                "display_type": "warning dashed",
+                "label": "Warning: {{ .Values.datadog.monitors.latency.threshold.warning }}ms"
+              }
+            ]
+          },
+          "layout": {
+            "x": 0,
+            "y": 3,
+            "width": 12,
+            "height": 3
+          }
+        },
+        {
+          "id": 4,
+          "definition": {
+            "title": "🎯 Top Endpoints by Request Count",
+            "title_size": "16",
+            "type": "toplist",
+            "requests": [
+              {
+                "q": "top(sum:trace.servlet.request.hits{service:{{ .Values.service.name }},env:{{ .Values.global.environment }}} by {resource_name}.as_count(), 10, 'sum', 'desc')",
+                "style": {
+                  "palette": "dog_classic"
+                }
+              }
+            ]
+          },
+          "layout": {
+            "x": 0,
+            "y": 6,
+            "width": 4,
+            "height": 3
+          }
+        },
+        {
+          "id": 5,
+          "definition": {
+            "title": "🔥 Top Endpoints by Error Rate",
+            "title_size": "16",
+            "type": "toplist",
+            "requests": [
+              {
+                "q": "top((sum:trace.servlet.request.errors{service:{{ .Values.service.name }},env:{{ .Values.global.environment }}} by {resource_name}.as_count() / sum:trace.servlet.request.hits{service:{{ .Values.service.name }},env:{{ .Values.global.environment }}} by {resource_name}.as_count()) * 100, 10, 'mean', 'desc')",
+                "style": {
+                  "palette": "warm"
+                }
+              }
+            ]
+          },
+          "layout": {
+            "x": 4,
+            "y": 6,
+            "width": 4,
+            "height": 3
+          }
+        },
+        {
+          "id": 6,
+          "definition": {
+            "title": "🐌 Slowest Endpoints (p99)",
+            "title_size": "16",
+            "type": "toplist",
+            "requests": [
+              {
+                "q": "top(p99:trace.servlet.request.duration{service:{{ .Values.service.name }},env:{{ .Values.global.environment }}} by {resource_name}, 10, 'mean', 'desc')",
+                "style": {
+                  "palette": "purple"
+                }
+              }
+            ]
+          },
+          "layout": {
+            "x": 8,
+            "y": 6,
+            "width": 4,
+            "height": 3
+          }
+        },
+        {
+          "id": 7,
+          "definition": {
+            "title": "🗺️ Service Map",
+            "title_size": "16",
+            "type": "servicemap",
+            "service": "{{ .Values.service.name }}",
+            "env": "{{ .Values.global.environment }}",
+            "filters": []
+          },
+          "layout": {
+            "x": 0,
+            "y": 9,
+            "width": 6,
+            "height": 4
+          }
+        },
+        {
+          "id": 8,
+          "definition": {
+            "title": "📈 Request Volume Trend (24h)",
+            "title_size": "16",
+            "type": "timeseries",
+            "requests": [
+              {
+                "q": "sum:trace.servlet.request.hits{service:{{ .Values.service.name }},env:{{ .Values.global.environment }}}.as_count().rollup(sum, 3600)",
+                "display_type": "bars",
+                "style": {
+                  "palette": "cool"
+                }
+              }
+            ]
+          },
+          "layout": {
+            "x": 6,
+            "y": 9,
+            "width": 6,
+            "height": 2
+          }
+        },
+        {
+          "id": 9,
+          "definition": {
+            "title": "⚠️ Active Monitors",
+            "title_size": "16",
+            "type": "manage_status",
+            "query": "service:{{ .Values.service.name }} env:{{ .Values.global.environment }}",
+            "sort": "status,asc",
+            "count": 10,
+            "display_format": "countsAndList",
+            "color_preference": "text",
+            "hide_zero_counts": true,
+            "show_last_triggered": true
+          },
+          "layout": {
+            "x": 6,
+            "y": 11,
+            "width": 6,
+            "height": 2
+          }
+        }
+      ],
+      "template_variables": [
+        {
+          "name": "service",
+          "default": "{{ .Values.service.name }}",
+          "prefix": "service"
+        },
+        {
+          "name": "env",
+          "default": "{{ .Values.global.environment }}",
+          "prefix": "env"
+        }
+      ],
+      "layout_type": "ordered",
+      "is_read_only": false,
+      "notify_list": [],
+      "reflow_type": "auto",
+      "tags": [
+        "service:{{ .Values.service.name }}",
+        "env:{{ .Values.global.environment }}",
+        "team:{{ .Values.global.team }}",
+        "dashboard-type:red-metrics",
+        "managed-by:helm"
+      ]
+    }
+{{- end }}

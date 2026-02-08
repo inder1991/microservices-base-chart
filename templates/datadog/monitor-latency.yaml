@@ -1,0 +1,52 @@
+{{- if and .Values.datadog.monitors.enabled .Values.datadog.monitors.latency.enabled }}
+apiVersion: datadoghq.com/v1alpha1
+kind: DatadogMonitor
+metadata:
+  name: {{ include "base.datadogMonitorName" (merge (dict "monitorType" "latency") .) }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "base.labels" . | nindent 4 }}
+    monitor-type: latency
+spec:
+  query: |
+    avg(last_{{ .Values.datadog.monitors.latency.evaluationWindow }}):{{ .Values.datadog.monitors.latency.percentile }}:trace.servlet.request.duration{service:{{ .Values.service.name }},env:{{ .Values.global.environment }}} by {service,resource_name} > {{ .Values.datadog.monitors.latency.threshold.critical }}
+  
+  type: metric alert
+  
+  name: "[{{ .Values.global.environment | upper }}] {{ .Values.service.name }} - Latency ({{ .Values.datadog.monitors.latency.percentile | upper }})"
+  
+  message: |
+    {{ .Values.datadog.monitors.latency.message }}
+    
+    **Impact Analysis:**
+    - Current {{ .Values.datadog.monitors.latency.percentile | upper }}: {{value}}ms
+    - Threshold: {{ .Values.datadog.monitors.latency.threshold.critical }}ms
+    - Affected Endpoints: {{resource_name.name}}
+    
+    {{- if .Values.datadog.notifications.slackChannel }}
+    @{{ .Values.datadog.notifications.slackChannel }}
+    {{- end }}
+  
+  tags:
+    - service:{{ .Values.service.name }}
+    - env:{{ .Values.global.environment }}
+    - team:{{ .Values.global.team }}
+    - monitor-type:latency
+    {{- range .Values.datadog.tags }}
+    - {{ . }}
+    {{- end }}
+  
+  options:
+    thresholds:
+      critical: {{ .Values.datadog.monitors.latency.threshold.critical }}
+      warning: {{ .Values.datadog.monitors.latency.threshold.warning }}
+    
+    notify_no_data: {{ .Values.datadog.notifications.notifyNoData }}
+    no_data_timeframe: {{ .Values.datadog.notifications.noDataTimeframe }}
+    
+    {{- if gt (.Values.datadog.notifications.renotifyInterval | int) 0 }}
+    renotify_interval: {{ .Values.datadog.notifications.renotifyInterval }}
+    {{- end }}
+    
+    priority: {{ include "base.alertPriority" (dict "Values" .Values "prodPriority" 2 "stagingPriority" 3 "testPriority" 3) }}
+{{- end }}

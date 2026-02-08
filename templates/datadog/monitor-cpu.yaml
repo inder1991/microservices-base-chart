@@ -1,0 +1,44 @@
+{{- if and .Values.datadog.monitors.enabled .Values.datadog.monitors.cpu.enabled }}
+apiVersion: datadoghq.com/v1alpha1
+kind: DatadogMonitor
+metadata:
+  name: {{ include "base.datadogMonitorName" (merge (dict "monitorType" "cpu") .) }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "base.labels" . | nindent 4 }}
+    monitor-type: cpu
+spec:
+  query: |
+    min(last_{{ .Values.datadog.monitors.cpu.sustainedDuration }}):avg:kubernetes.cpu.usage.total{service:{{ .Values.service.name }},env:{{ .Values.global.environment }}} by {pod_name} > {{ .Values.datadog.monitors.cpu.threshold.critical }}
+  
+  type: metric alert
+  
+  name: "[{{ .Values.global.environment | upper }}] {{ .Values.service.name }} - CPU High Usage (Sustained)"
+  
+  message: |
+    Sustained high CPU usage for {{ .Values.service.name }} in {{ .Values.global.environment }}.
+    Current: {{value}}%
+    Duration: {{ .Values.datadog.monitors.cpu.sustainedDuration }}
+    
+    {{- if .Values.datadog.notifications.slackChannel }}
+    @{{ .Values.datadog.notifications.slackChannel }}
+    {{- end }}
+  
+  tags:
+    - service:{{ .Values.service.name }}
+    - env:{{ .Values.global.environment }}
+    - team:{{ .Values.global.team }}
+    - monitor-type:cpu
+    {{- range .Values.datadog.tags }}
+    - {{ . }}
+    {{- end }}
+  
+  options:
+    thresholds:
+      critical: {{ .Values.datadog.monitors.cpu.threshold.critical }}
+      warning: {{ .Values.datadog.monitors.cpu.threshold.warning }}
+    
+    notify_no_data: true
+    no_data_timeframe: 20
+    priority: {{ include "base.alertPriority" (dict "Values" .Values "prodPriority" 2 "stagingPriority" 3 "testPriority" 3) }}
+{{- end }}
