@@ -1,0 +1,23 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: {{ include "base.networkPolicy.apiVersion" . }}
+kind: NetworkPolicy
+metadata:
+  name: {{ include "base.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "base.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "base.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    {{- toYaml .Values.networkPolicy.policyTypes | nindent 4 }}
+  {{- with .Values.networkPolicy.ingress }}
+  ingress:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.networkPolicy.egress }}
+  egress:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}
