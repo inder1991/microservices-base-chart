@@ -1,7 +1,21 @@
 # Default values for microservices-base chart
 # This is a YAML-formatted file with all possible configuration options
 # Applications using this base chart should override these values
-
+datadog:
+  # Unified Service Tagging
+  env: "prod"  # Will default to global.env if not set
+  service: ""  # Will default to chart fullname if not set
+  version: ""  # Will default to Chart.AppVersion if not set
+  
+  # APM Configuration
+  logsInjection: "true"
+  traceSampleRate: "1"  # 100% sampling, adjust for production (e.g., "0.1" for 10%)
+  profilingEnabled: "true"
+  
+  # Agent Configuration (optional)
+  agentHost: true  # Enable to set DD_AGENT_HOST to node IP
+  traceAgentPort: "8126"
+  dogstatsdPort: "8125"
 # Global configuration shared across all components
 global:
   # Kubernetes cluster information
