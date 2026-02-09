@@ -1,143 +1,37 @@
-# Default values for microservices-base chart
-# This is a YAML-formatted file with all possible configuration options
-# Applications using this base chart should override these values
-datadog:
-  # Unified Service Tagging
-  env: "prod"  # Will default to global.env if not set
-  service: ""  # Will default to chart fullname if not set
-  version: ""  # Will default to Chart.AppVersion if not set
-  
-  # APM Configuration
-  logsInjection: "true"
-  traceSampleRate: "1"  # 100% sampling, adjust for production (e.g., "0.1" for 10%)
-  profilingEnabled: "true"
-  
-  # Agent Configuration (optional)
-  agentHost: true  # Enable to set DD_AGENT_HOST to node IP
-  traceAgentPort: "8126"
-  dogstatsdPort: "8125"
-# Global configuration shared across all components
+# Global configuration
 global:
-  # Kubernetes cluster information
-  clusterName: ""  # e.g., eks-prod-cluster
-  
-  # Environment (prod, staging, test, dev)
-  environment: ""
-  
-  # Team ownership
+  environment: "dev"
   team: "platform-engineering"
-  
-  # Business unit for cost allocation
-  businessUnit: ""
-  
-  # Datadog configuration
-  datadog:
-    enabled: true
-    site: "datadoghq.com"  # or datadoghq.eu
-    # API keys should be provided via secrets, not here
-    apm:
-      enabled: true
-      portEnabled: true
-    logs:
-      enabled: true
-    metrics:
-      enabled: true
-    profiling:
-      enabled: false
+  clusterName: ""
 
-# Service-specific configuration
+# Datadog configuration
+datadog:
+  env: ""  # Defaults to global.environment
+  service: ""  # Defaults to release name
+  version: ""  # Defaults to Chart.AppVersion
+  
+  logsInjection: "true"
+  traceSampleRate: "1"
+  profilingEnabled: "true"
+  agentHost: true
+
+# Service configuration
 service:
-  # Name of the service (will be used as app label)
-  name: ""  # REQUIRED - must be provided by application
-  
-  # Service type (same as Deployment name by default)
-  type: ClusterIP  # ClusterIP, NodePort, LoadBalancer
-  
-  # Port configuration
+  name: ""  # REQUIRED
+  type: ClusterIP
   port: 8080
   targetPort: 8080
-  protocol: TCP
-  
-  # Additional ports (for services that expose multiple ports)
-  additionalPorts: []
-  # - name: metrics
-  #   port: 9090
-  #   targetPort: 9090
-  #   protocol: TCP
-  
-  # Service annotations
-  annotations: {}
-  
-  # Session affinity
-  sessionAffinity: None  # None, ClientIP
-  sessionAffinityConfig: {}
 
-# Deployment configuration
-deployment:
-  # Number of replicas (if HPA is disabled)
-  replicaCount: 2
-  
-  # Deployment strategy
-  strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxSurge: 1
-      maxUnavailable: 0
-  
-  # Pod annotations (for Datadog, Prometheus, etc.)
-  podAnnotations:
-    # Datadog APM
-    ad.datadoghq.com/tags: '{"team":"{{ .Values.global.team }}", "business-unit":"{{ .Values.global.businessUnit }}"}'
-  
-  # Pod labels (in addition to standard labels)
-  podLabels: {}
-  
-  # Pod security context
-  podSecurityContext:
-    runAsNonRoot: true
-    runAsUser: 1000
-    fsGroup: 1000
-  
-  # Security context for containers
-  securityContext:
-    allowPrivilegeEscalation: false
-    capabilities:
-      drop:
-        - ALL
-    readOnlyRootFilesystem: true
-  
-  # Service account
-  serviceAccount:
-    create: true
-    annotations: {}
-    name: ""  # If not set, name is generated using fullname template
-  
-  # Node selector
-  nodeSelector: {}
-  
-  # Tolerations
-  tolerations: []
-  
-  # Affinity rules
-  affinity: {}
-  
-  # Topology spread constraints
-  topologySpreadConstraints: []
-  # - maxSkew: 1
-  #   topologyKey: topology.kubernetes.io/zone
-  #   whenUnsatisfiable: DoNotSchedule
-
-# Container configuration
+# Image configuration
 image:
-  repository: ""  # REQUIRED - must be provided by application
+  repository: ""  # REQUIRED
+  tag: ""  # Defaults to Chart.AppVersion
   pullPolicy: IfNotPresent
-  tag: ""  # If not specified, uses .Chart.AppVersion
-  
-# Image pull secrets
-imagePullSecrets: []
-# - name: registry-secret
 
-# Container resources
+# Deployment
+replicaCount: 2
+
+# Resources
 resources:
   limits:
     cpu: 1000m
@@ -149,320 +43,63 @@ resources:
 # Health checks
 livenessProbe:
   enabled: true
-  httpGet:
-    path: /health
-    port: http
-    scheme: HTTP
+  path: /health
   initialDelaySeconds: 30
   periodSeconds: 10
   timeoutSeconds: 5
-  successThreshold: 1
   failureThreshold: 3
 
 readinessProbe:
   enabled: true
-  httpGet:
-    path: /health
-    port: http
-    scheme: HTTP
+  path: /health
   initialDelaySeconds: 10
   periodSeconds: 5
   timeoutSeconds: 3
-  successThreshold: 1
   failureThreshold: 3
 
-startupProbe:
-  enabled: false
-  httpGet:
-    path: /health
-    port: http
-  initialDelaySeconds: 0
-  periodSeconds: 10
-  timeoutSeconds: 3
-  failureThreshold: 30
-
-# Environment variables
-env: {}
-# KEY: value
-# DATABASE_URL: postgres://db:5432/mydb
-
-# Environment variables from ConfigMaps
-envFrom: []
-# - configMapRef:
-#     name: app-config
-# - secretRef:
-#     name: app-secrets
-
-# Volume mounts
-volumeMounts: []
-# - name: config
-#   mountPath: /app/config
-#   readOnly: true
-
-# Volumes
-volumes: []
-# - name: config
-#   configMap:
-#     name: app-config
-
-# ConfigMaps to create
-configMaps: {}
-# app-config:
-#   data:
-#     application.properties: |
-#       server.port=8080
-#       logging.level=INFO
-
-# Secrets to create (use external-secrets in production)
-secrets: {}
-# app-secrets:
-#   type: Opaque
-#   data:
-#     # base64 encoded values
-#     database-password: ""
-
-# Horizontal Pod Autoscaler
+# Autoscaling
 autoscaling:
   enabled: true
   minReplicas: 2
   maxReplicas: 10
   targetCPUUtilizationPercentage: 70
   targetMemoryUtilizationPercentage: 80
-  behavior: {}
-  # scaleDown:
-  #   stabilizationWindowSeconds: 300
-  #   policies:
-  #   - type: Percent
-  #     value: 50
-  #     periodSeconds: 60
 
 # Pod Disruption Budget
 podDisruptionBudget:
   enabled: true
   minAvailable: 1
-  # maxUnavailable: 1
 
-# Ingress configuration
+# Security
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+
+# Optional configurations
+serviceAccount:
+  create: true
+
+podAnnotations: {}
+podLabels: {}
+env: {}
+envFrom: []
+volumeMounts: []
+volumes: []
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# Ingress
 ingress:
   enabled: false
-  className: "nginx"  # or traefik, alb, etc.
-  annotations: {}
-    # cert-manager.io/cluster-issuer: letsencrypt-prod
-    # nginx.ingress.kubernetes.io/ssl-redirect: "true"
-  
-  hosts:
-    - host: chart-example.local
-      paths:
-        - path: /
-          pathType: Prefix
-  
+  className: "nginx"
+  hosts: []
   tls: []
-  # - secretName: chart-example-tls
-  #   hosts:
-  #     - chart-example.local
-
-# NetworkPolicy
-networkPolicy:
-  enabled: false
-  policyTypes:
-    - Ingress
-    - Egress
-  
-  ingress:
-    - from:
-      - namespaceSelector:
-          matchLabels:
-            name: ingress-nginx
-      ports:
-      - protocol: TCP
-        port: 8080
-  
-  egress:
-    - to:
-      - namespaceSelector: {}
-      ports:
-      - protocol: TCP
-        port: 53  # DNS
-    - to:
-      - namespaceSelector: {}
-      ports:
-      - protocol: TCP
-        port: 443  # HTTPS
-
-# ServiceMonitor for Prometheus Operator
-serviceMonitor:
-  enabled: false
-  interval: 30s
-  scrapeTimeout: 10s
-  path: /metrics
-  labels: {}
-  scheme: http
-  tlsConfig: {}
-
-# Datadog Monitoring Configuration
-datadog:
-  monitors:
-    enabled: true
-    
-    # Error rate monitor
-    errorRate:
-      enabled: true
-      threshold:
-        critical: 5.0
-        warning: 2.0
-      evaluationWindow: "5m"
-      minRequestVolume: 100
-      message: |
-        Error rate for {{ .Values.service.name }} is {{value}}% in {{ .Values.global.environment }}.
-        This may impact customer experience.
-    
-    # Latency monitor
-    latency:
-      enabled: true
-      percentile: "p99"
-      threshold:
-        critical: 500
-        warning: 300
-      evaluationWindow: "10m"
-      message: |
-        Latency (p99) for {{ .Values.service.name }} is {{value}}ms in {{ .Values.global.environment }}.
-        Performance degradation detected.
-    
-    # Throughput anomaly detection
-    throughput:
-      enabled: true
-      anomalyDetection: true
-      deviationThreshold: 3.0
-      seasonality: "weekly"
-      message: |
-        Request volume anomaly detected for {{ .Values.service.name }}.
-        Current: {{value}}, Expected: {{anomaly_bounds}}
-    
-    # Business metrics (optional, configure per service)
-    businessMetric:
-      enabled: false
-      metricName: ""
-      threshold:
-        critical: 90.0
-        warning: 95.0
-      evaluationWindow: "15m"
-    
-    # Resource monitors
-    memory:
-      enabled: true
-      threshold:
-        critical: 90
-        warning: 80
-      forecast: true
-    
-    cpu:
-      enabled: true
-      threshold:
-        critical: 85
-        warning: 70
-      sustainedDuration: "15m"
-  
-  # Notification settings
-  notifications:
-    slackChannel: ""  # e.g., #prod-alerts
-    pagerdutyServiceKey: ""
-    emailList: []
-    
-    renotifyInterval: 60
-    notifyNoData: true
-    noDataTimeframe: 10
-  
-  # Tags for all Datadog resources
-  tags: []
-  # Additional tags beyond auto-generated ones
-  # - custom-tag:value
-
-# External dependencies (databases, caches, queues)
-dependencies:
-  # PostgreSQL
-  postgres:
-    enabled: false
-    host: ""
-    port: 5432
-    database: ""
-    usernameSecret:
-      name: ""
-      key: username
-    passwordSecret:
-      name: ""
-      key: password
-  
-  # Redis
-  redis:
-    enabled: false
-    host: ""
-    port: 6379
-    passwordSecret:
-      name: ""
-      key: password
-  
-  # RabbitMQ
-  rabbitmq:
-    enabled: false
-    host: ""
-    port: 5672
-    vhost: /
-    usernameSecret:
-      name: ""
-      key: username
-    passwordSecret:
-      name: ""
-      key: password
-
-# Feature flags for optional components
-features:
-  # Enable Datadog APM auto-instrumentation
-  datadogAPM: true
-  
-  # Enable Prometheus metrics scraping
-  prometheusMetrics: false
-  
-  # Enable Istio sidecar injection
-  istioInjection: false
-  
-  # Enable Linkerd sidecar injection
-  linkerdInjection: false
-  
-  # Enable Vault secrets injection
-  vaultInjection: false
-
-# Additional labels to apply to all resources
-labels: {}
-
-# Additional annotations to apply to all resources
-annotations: {}
-
-# Datadog Dashboards
-  dashboards:
-    enabled: true  # Create default dashboards for every service
-    
-    # RED Metrics Dashboard
-    redMetrics:
-      enabled: true
-      # Automatically includes:
-      # - Request rate (per minute)
-      # - Error rate (%) with thresholds
-      # - Latency distribution (p50, p95, p99)
-      # - Top endpoints by traffic
-      # - Top endpoints by errors
-      # - Slowest endpoints
-      # - Service map
-      # - Active monitors
-    
-    # Infrastructure Dashboard
-    infrastructure:
-      enabled: true
-      # Automatically includes:
-      # - Pod status and count
-      # - Pod restarts
-      # - HPA status
-      # - CPU usage by pod
-      # - Memory usage by pod
-      # - CPU/Memory requests vs limits
-      # - Network traffic
-      # - Recent Kubernetes events
